@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<!--
+Author: Marko Zlatic
+Date: June 30, 2023
+Purpose: Urisa Digital Competition 2023
+Student Status: Graduate
+Program: MSc. Geographic Information Systems
+University: Johns Hopkins University
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Predicted Crime in Baltimore</title>
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+    <link rel="stylesheet" href="https://js.arcgis.com/4.24/esri/themes/light/main.css"/>
+    <style>
+        html,
+        body {
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            width: 100%;
+        }
+        #viewDiv{
+            position: absolute;
+            height: 85%;
+            width: 100%;
+            bottom: 10%;
+        }
+        #yearSlider{
+            position: absolute;
+            bottom: 0;
+            height: 10%;
+            width: 100%;
+        }
+        #headerInfo{
+            width: 100%;
+            display: flex;
+        }
+        #titleText{
+            position: absolute;
+            top: 5px;
+            right: 35%;
+            font-size: xx-large;
+        }
+        #buttons{
+            position: absolute;
+            top: 10px;
+            right: 1%;
+        }
+        #toggleLegend{
+            margin-left: 10px;
+            margin-right: 10px;
+        }
+        #splashPageButton{
+            margin-right: 10px;
+        }
+        #queryUI{
+            position: absolute;
+            z-index: 10;
+            bottom: 15%;
+            width: 25%;
+            right: 1%;
+        }
+
+    </style>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.js"></script>
+    <script src="https://js.arcgis.com/4.24/"></script>
+
+    <script>
+        require(["esri/Map", "esri/views/MapView", "esri/layers/FeatureLayer", "esri/widgets/Legend",
+                "esri/widgets/Search", "esri/widgets/Home", "esri/smartMapping/statistics/uniqueValues",
+                "esri/widgets/BasemapGallery", "esri/widgets/TimeSlider", "esri/core/reactiveUtils",
+                "esri/renderers/HeatmapRenderer"],
+            (Map, MapView, FeatureLayer, Legend, Search, Home, uniqueValues, BasemapGallery, TimeSlider, reactiveUtils,
+            HeatmapRenderer) =>{
+            $(function(){
+                // Load splash page for info about webapp
+                $('#splashPageButton').click(function (){
+                    $('#splashPage').dialog({
+                        height: 'auto',
+                        width: 550,
+                        modal: true,
+                        buttons:{
+                            Close: function (){
+                                $(this).dialog('close');
+                            }
+                        }
+                    });
+                });
+                
+                // Load map and view elements
+                const map = new Map({
+                    basemap: 'dark-gray-vector'
+                });
+                const view = new MapView({
+                    map: map,
+                    container: 'viewDiv',
+                    center: [-76.612784, 39.296482],
+                    zoom: 11
+                });
+                
+                // Load feature layer with proper heat map render
+                const heatMapRender = new HeatmapRenderer({
+                    radius: 5,
+                    maxDensity: 5,
+                    minDensity: 0,
+                    colorStops: [
+                        { color: [133, 193, 200, 0], ratio: 0 },
+                        { color: [133, 193, 200, 0], ratio: 0.01 },
+                        { color: [133, 193, 200, 255], ratio: 0.01 },
+                        { color: [133, 193, 200, 255], ratio: 0.01 },
+                        { color: [144, 161, 190, 255], ratio: 0.0925 },
+                        { color: [156, 129, 132, 255], ratio: 0.175 },
+                        { color: [167, 97, 170, 255], ratio: 0.2575 },
+                        { color: [175, 73, 128, 255], ratio: 0.34 },
+                        { color: [184, 48, 85, 255], ratio: 0.4225 },
+                        { color: [192, 24, 42, 255], ratio: 0.505 },
+                        { color: [200, 0, 0, 255], ratio: 0.5875 },
+                        { color: [211, 51, 0, 255], ratio: 0.67 },
+                        { color: [222, 102, 0, 255], ratio: 0.7525},
+                        { color: [233, 153, 0, 255], ratio: 0.835},
+                        { color: [244, 204, 0, 255], ratio: 0.9175},
+                        { color: [255, 255, 0, 255], ratio: 1 }
+                    ],
+                    referenceScale: view.scale
+                });
+
+                const crimeFeatureLayer = new FeatureLayer({
+                    url: 'https://services1.arcgis.com/0MSEUqKaxRlEPj5g/arcgis/rest/services/MZ_Urisa_Comp_Predicted_Crime_in_Baltimore/FeatureServer/0',
+                    title: 'Crime Density',
+                    renderer: heatMapRender
+                });
+                map.add(crimeFeatureLayer);
+                
+                // Load other essential map elements
+                const legend = new Legend({view: view, label: 'Crime Density'});
+                view.ui.add(legend, 'bottom-left');
+                view.ui.add(new Home({view: view}), {position: 'top-left', index: 0});
+                view.ui.add(new Search({view:view}), {position: 'top-left', index: 0});
+                const basemaps = new BasemapGallery({view: view, visible: false});
+                view.ui.add(basemaps, 'top-right');
+                
+                // Once when feature layer loads, begin to load interactive components
+                crimeFeatureLayer.when(() =>{
+                    $('#toggleLegend').click(function (){
+                        legend.visible = !legend.visible;
+                    });
+                    $('#toggleBasemaps').click(function (){
+                        basemaps.visible = !basemaps.visible;
+                    });
+                    
+                    // Load time slider
+                    const yearSlider = new TimeSlider({
+                        container: 'yearSlider',
+                        fullTimeExtent: {
+                            start: new Date(2022, 12, 1),
+                            end: new Date(2032, 12, 1)
+                        },
+                        playRate: 2000,
+                        stops: {
+                            interval: {
+                                value: 1,
+                                unit: 'years'
+                            }
+                        }
+                    });
+                    
+                    // When time slider loads, load interactive components for feature layer query capabilities
+                    yearSlider.when(() =>{
+                        const query = {
+                            yearQuery: '',
+                            crimeQuery: ''
+                        };
+                        
+                        // Pull domain values for crime type field and use values to load up crime type query widget
+                        const domains = crimeFeatureLayer.getField('Description_Val').domain.codedValues;
+                        const $addToQueryDiv = $("<fieldset style='text-align: center'><legend></legend>");
+                        domains.forEach(function (domain){
+                            console.log(domain.name);
+                            const $appendToFieldSet = $(`<label for="${domain.name}">${domain.name}<input id="${domain.name}" type="checkbox"></label>`);
+                            $appendToFieldSet.appendTo($addToQueryDiv);
+                        });
+                        const $queryUIDiv = $('#queryUI');
+
+                        let checkButtonStatus;
+
+                        // Function below ensures query for feature layer loads first before user is able to re-query
+                        function layerUpdating($timesliderelms){
+                            view.whenLayerView(crimeFeatureLayer).then((checkLayer) =>{
+                                async function waitForLayer(){
+                                    await reactiveUtils.whenOnce(() => !checkLayer.updating);
+                                    if ($timesliderelms.length > 1){
+                                        $timesliderelms.children().show();
+                                    }
+                                    if (checkButtonStatus === 'not playing'){
+                                        $clearSlider.attr('disabled', false);
+                                    }
+                                }
+                                waitForLayer();
+                            });
+                        }
+                        
+                        // Establish crime type widget and establish interactive querying
+                        $addToQueryDiv.appendTo($queryUIDiv);
+                        const $checkBoxes = $('input[type="checkbox"]');
+                        $checkBoxes.checkboxradio({
+                            create: function (event, ui){
+                                console.log('test test', event, ui);
+                                $(event.target).click(function (){
+                                    const $timeSliderButtons = $('.esri-time-slider__next, .esri-time-slider__previous, .esri-time-slider__animation');
+                                    if ($timeSliderButtons.length > 1){
+                                        $timeSliderButtons.children().hide();
+                                    }
+
+                                    let retrieveClicked = [];
+                                    $checkBoxes.each(function (idx, val){
+                                        const checkCheckBox = $checkBoxes[idx]
+                                        if (checkCheckBox.checked){
+                                            retrieveClicked.push(checkCheckBox.id);
+                                        }
+                                    });
+                                    console.log('The following crime types are selected:', retrieveClicked);
+                                    query['crimeQuery'] = `Description_Val IN('${retrieveClicked.join("', '")}')`;
+                                    if (query['yearQuery'].length < 1 && retrieveClicked.length < 1){
+                                        crimeFeatureLayer.definitionExpression = '';
+                                        query['crimeQuery'] = '';
+                                    } else if(retrieveClicked.length < 1){
+                                        crimeFeatureLayer.definitionExpression = query['yearQuery'];
+                                        query['crimeQuery'] = '';
+                                    } else if (query['yearQuery'].length < 1){
+                                        crimeFeatureLayer.definitionExpression = query['crimeQuery'];
+                                    } else {
+                                        crimeFeatureLayer.definitionExpression = query['crimeQuery'] + ' AND ' + query['yearQuery'];
+                                    }
+                                    console.log('current query applied:', crimeFeatureLayer.definitionExpression);
+                                    layerUpdating($timeSliderButtons);
+                                });
+                            }
+                        });
+                        $('<h3 style="font-size: larger; background-color: white; width: 35%; margin-bottom: 1px">Crime Type Query</h3>').prependTo($queryUIDiv);
+                        
+                        // Load interactive nature of time slider, whenever a user were to click on its components, it queries the feature layer
+                        const $playButton = $('.esri-time-slider__animation');
+                        const $timeSliderButtons = $('.esri-time-slider__next, .esri-time-slider__previous');
+                        const $clearSlider = $('#clearSlider');
+
+                        $playButton.click(function (){
+                            if ($clearSlider.attr('disabled')){
+                                checkButtonStatus = 'not playing';
+                                $clearSlider.attr('disabled', false);
+                            } else {
+                                checkButtonStatus = 'playing';
+                                $clearSlider.attr('disabled', true);
+                            }
+                        });
+                        $clearSlider.click(function (){
+                            $(this).attr('class', 'clicked');
+                            yearSlider.timeExtent = {
+                                start: new Date(2022, 12, 1),
+                                end: new Date(2023, 12, 1)
+                            }
+                        });
+                        yearSlider.watch('timeExtent', () =>{ // if user clicks on a time slider button, then...
+                            async function wait0_1Sec(){
+                                if (checkButtonStatus === 'not playing'){
+                                    $clearSlider.attr('disabled', true);
+                                }
+                                $timeSliderButtons.children().hide();
+                                return new Promise(resolve => {
+                                    setTimeout(resolve, 100);
+                                });
+                            }
+                            async function applyQuery(){
+                                if ($clearSlider.attr('class') === 'clicked'){
+                                    $clearSlider.attr('class', 'unclicked');
+                                    if (query['crimeQuery'].length < 1){
+                                        crimeFeatureLayer.definitionExpression = '';
+                                    } else {
+                                        crimeFeatureLayer.definitionExpression = query['crimeQuery'];
+                                    }
+                                    query['yearQuery'] = '';
+                                    console.log('current query applied:', crimeFeatureLayer.definitionExpression);
+                                } else {
+                                    const $yearInfo = $('.esri-time-slider__time-extent-date');
+                                    let soonestYear = parseInt($yearInfo[0].innerHTML.split('/')[2]);
+                                    let latestYear = parseInt($yearInfo[1].innerHTML.split('/')[2]);
+                                    console.log('soonest year:' + soonestYear, 'latest year:' + latestYear);
+                                    if (latestYear - soonestYear === 1){
+                                        query['yearQuery'] = `YEAR = ${soonestYear}`
+                                    } else {
+                                        let prepYearQuery = [];
+                                        while (soonestYear < latestYear){
+                                            prepYearQuery.push(soonestYear);
+                                            soonestYear++;
+                                        }
+                                        console.log('Years that will be queried: ', prepYearQuery);
+                                        query['yearQuery'] = `YEAR IN(${prepYearQuery.join(', ')})`;
+                                    }
+                                    if (query['crimeQuery'].length < 1){
+                                        crimeFeatureLayer.definitionExpression = query['yearQuery'];
+                                    } else {
+                                        crimeFeatureLayer.definitionExpression = query['yearQuery'] + ' AND ' + query['crimeQuery'];
+                                    }
+                                    console.log('current query applied:', crimeFeatureLayer.definitionExpression);
+                                }
+                            }
+                            wait0_1Sec().then(() =>{
+                                applyQuery().then(() =>{
+                                    layerUpdating($timeSliderButtons);
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+        });
+
+    </script>
+</head>
+<body>
+
+    <header>
+        <div id="headerInfo">
+            <div id="titleText">
+                Crime Predictions in Baltimore, MD from 2023 to 2033
+            </div>
+
+            <div id="buttons">
+                <button id="splashPageButton">View Splash page</button>
+                <button id="clearSlider">Clear Time Series</button>
+                <button id="toggleLegend">Toggle Legend</button>
+                <button id="toggleBasemaps">Toggle Basemaps</button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+
+        <div id="viewDiv"></div>
+        <div id="yearSlider"></div>
+        <div id="queryUI"></div>
+        <div id="splashPage" style="display: none" title="2023 Urisa Student Competition">
+            <b>This web application was built to uphold requirements for the 2023 Urisa Digital Student Competition.</b>
+            <br><br><br>
+            The 'Crime Predictions in Baltimore, MD from 2023 to 2033' web application visualizes results for an XGBoost regressor algorithm that predicted the number of crimes, types of crime, and at what year crime will occur.
+            <br><br>
+            At the very bottom, there is a time-lapse sidebar that allows users to query for the different years present in the feature layer and have the heat map dynamically change based on the year(s) selected. To the bottom right, there is an additional query that users can use to query for specific crime types; both queries will honor one another (ie if the year and a crime type are queried, both will be rendered).
+            <br><br>
+            The source dataset that was used to generate the predictions was from the 'Part 1 Crime Data' produced from the Baltimore Police Department <a href="https://data.baltimorecity.gov/datasets/baltimore::part-1-crime-data/about" target="_blank">found here</a>. The main feature layer that is powering this web application can be <a href="https://services1.arcgis.com/0MSEUqKaxRlEPj5g/arcgis/rest/services/MZ_Urisa_Comp_Predicted_Crime_in_Baltimore/FeatureServer" target="_blank">found here</a>.
+            <br><br>
+        </div>
+    </main>
+
+</body>
+</html>
