@@ -1,2 +1,3 @@
-# Urisa_Digital_Competition_2023
-This repository contains the code for the web application and machine learning code for the Urisa Digital Competition 2023.
+# MZ Urisa Digital Competition 2023 - Web Application Code
+This branch contains the source code used to host and visualize the resulting prediction of crime in Baltimore, MD, USA.<br/>
+The hosted code can also be found vis JSBin [here](https://output.jsbin.com/fazozin)
